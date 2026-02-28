@@ -6,14 +6,13 @@ template <typename T, bool Extendable = false,
           typename Allocator = std::allocator<T>>
 class circular_buffer {
  public:
-
   using value_type = T;
   using reference = T&;
   using const_reference = const T&;
   using size_type = std::size_t;
   using allocator_type = Allocator;
   using difference_type = std::ptrdiff_t;
-  
+
   template <bool IsConst>
   class base_iterator {
    public:
@@ -37,9 +36,7 @@ class circular_buffer {
     ~base_iterator() = default;
 
     reference operator*() const { 
-      return begin_[(head_ + index_) % cap_];
-      // begin_[index_];
-      // return *(begin_ + index_); }
+      return begin_[(head_ + index_) % cap_]; 
     }
 
     bool operator==(const base_iterator& other) const {
@@ -71,24 +68,17 @@ class circular_buffer {
       return copy;
     }
 
-    base_iterator& operator+(difference_type value) { return *this; }
+    base_iterator& operator+(difference_type value) { 
+      index_ += value;
+      return *this; 
+    }
 
-    base_iterator& operator-(difference_type value) { return *this; }
-
-    /*
-    i->m 		Precondition 	i is dereferenceable.
-Effect 	Equivalent to (*i).m.
-++r 	X& 	Precondition 	r is dereferenceable.
-Postcondition
-
-    r is dereferenceable or r is past-the-end.
-    Any copies of the previous value of r are no longer required to be either
-dereferenceable or to be in the domain of ==.
-
-(void)r++ 		Effect 	Equivalent to (void)++r.
-*r++ 	convertible to T 	Effect 	Equivalent to T x = *r; ++r; return x;.
-    */
-
+    base_iterator& operator-(difference_type value) { 
+      index_ -= value;
+      
+      return *this; 
+    }
+    
    private:
     // Swappable
     size_type cap_ = 0;
@@ -102,9 +92,10 @@ dereferenceable or to be in the domain of ==.
   using const_iterator = base_iterator<true>;
   using reverse_iterator = base_iterator<false>;
   using const_reverse_iterator = base_iterator<true>;
-  
-  circular_buffer(size_t capacity) : cap_(capacity), buffer_(nullptr) {
-    buffer_ = reinterpret_cast<T*>(new char[sizeof(T) * capacity]);
+
+  circular_buffer(size_t capacity) : cap_(capacity) {
+    buffer_ = alloc_.allocate(capacity);
+        // reinterpret_cast<T*>(new char[sizeof(value_type) * capacity]);
   }
 
   circular_buffer(const allocator_type& alloc) : alloc_(alloc) {}
@@ -190,14 +181,12 @@ dereferenceable or to be in the domain of ==.
   // new(newarr + index) T(arr_[index]);
   void push_front(value_type value) {
     head_ = (head_ - 1 + cap_) % cap_;
-    // buffer_[head_] = value;
     new (buffer_ + head_) value_type(value);
     size_++;
   }
 
   void push_back(value_type value) {
-    buffer_[(head_ + size_) % cap_] = value;
-    new (buffer_ + head_ + size_) value_type(value);
+    new (buffer_ + (head_ + size_) % cap_) value_type(value);
     size_++;
   }
 
@@ -205,6 +194,7 @@ dereferenceable or to be in the domain of ==.
     head_ = (head_ + 1) % cap_;
     size_--;
   }
+
   void pop_back() { size_--; }
 
   void print() {
@@ -228,21 +218,33 @@ dereferenceable or to be in the domain of ==.
 
   circular_buffer& operator=(const circular_buffer& other) {}
 
-  ~circular_buffer() {}
+  ~circular_buffer() {
+    alloc_.deallocate(buffer_, cap_);
+    // for(int i = 0; i < size_; ++i) {
+    //   (buffer_ + i)->~T();
+    // }
+    // delete[] reinterpret_cast<char*>(buffer_);
+  }
 
   iterator begin() { return iterator(cap_, head_, size_, buffer_, 0); }
 
   const_iterator begin() const {
-    const_iterator(cap_, head_, size_, buffer_, 0);
+    return const_iterator(cap_, head_, size_, buffer_, 0);
   }
 
-  iterator end() { return iterator(cap_, head_, size_, buffer_, 0); }
+  iterator end() { return iterator(cap_, head_, size_, buffer_, size_); }
 
-  const_iterator end() const {}
+  const_iterator end() const {
+    return const_iterator(cap_, head_, size_, buffer_, size_);
+  }
 
-  const_iterator cbegin() {}
+  const_iterator cbegin() const {
+    return const_iterator(cap_, head_, size_, buffer_, size_);
+  }
 
-  const_iterator cend() {}
+  const_iterator cend() const {
+    return const_iterator(cap_, head_, size_, buffer_, size_);
+  }
 
   bool operator==(const circular_buffer& other) { return true; }
 

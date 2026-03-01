@@ -1,4 +1,5 @@
 #include <cstddef>
+#include <exception>
 #include <iostream>
 #include <memory>
 
@@ -35,9 +36,7 @@ class circular_buffer {
     base_iterator& operator=(const base_iterator& other) = default;
     ~base_iterator() = default;
 
-    reference operator*() const { 
-      return begin_[(head_ + index_) % cap_]; 
-    }
+    reference operator*() const { return begin_[(head_ + index_) % cap_]; }
 
     bool operator==(const base_iterator& other) const {
       return (index_ == other.index_ && begin_ == other.begin_);
@@ -68,17 +67,17 @@ class circular_buffer {
       return copy;
     }
 
-    base_iterator& operator+(difference_type value) { 
+    base_iterator& operator+(difference_type value) {
       index_ += value;
-      return *this; 
+      return *this;
     }
 
-    base_iterator& operator-(difference_type value) { 
+    base_iterator& operator-(difference_type value) {
       index_ -= value;
-      
-      return *this; 
+
+      return *this;
     }
-    
+
    private:
     // Swappable
     size_type cap_ = 0;
@@ -95,7 +94,7 @@ class circular_buffer {
 
   circular_buffer(size_t capacity) : cap_(capacity) {
     buffer_ = alloc_.allocate(capacity);
-        // reinterpret_cast<T*>(new char[sizeof(value_type) * capacity]);
+    // reinterpret_cast<T*>(new char[sizeof(value_type) * capacity]);
   }
 
   circular_buffer(const allocator_type& alloc) : alloc_(alloc) {}
@@ -111,7 +110,13 @@ class circular_buffer {
 
   circular_buffer() {}
 
-  circular_buffer(std::initializer_list<T> list) {}
+  circular_buffer(std::initializer_list<T> list)
+      : circular_buffer(list.size()) {
+    for (typename std::initializer_list<T>::iterator it = list.begin();
+         it != list.end(); ++it) {
+      this->push_back(*it);
+    }
+  }
 
   allocator_type get_allocator() { return alloc_; }
 
@@ -153,7 +158,19 @@ class circular_buffer {
 
   // iterator insert(const_iterator it, std::initializer_list)
 
-  iterator erase(const_iterator it) {}
+  // O(N)
+  iterator erase(const_iterator it) {
+    // But what if head wasn't in 0?
+    // Different cases with head_
+    const_iterator forward = this->cbegin();
+    while (forward != this->cend()) {
+      if (forward != it) {
+        this->push_back(*it);
+      }
+    }
+    size_--;
+    return iterator();
+  }
 
   iterator erase(const_iterator range_begin, const_iterator range_end) {}
 
@@ -182,22 +199,38 @@ class circular_buffer {
   void push_front(value_type value) {
     head_ = (head_ - 1 + cap_) % cap_;
     new (buffer_ + head_) value_type(value);
-    size_++;
+    if (size_ != cap_) {
+      size_++;
+    }
   }
 
   void push_back(value_type value) {
     new (buffer_ + (head_ + size_) % cap_) value_type(value);
-    size_++;
+    if (size_ != cap_) {
+      size_++;
+    } else {
+      head_++;
+      head_ = head_ % cap_;
+    }
   }
 
   void pop_front() {
+    if (size_ == 0) {
+      throw std::runtime_error("pop_front on empty buffer");
+    }
     head_ = (head_ + 1) % cap_;
     size_--;
   }
 
-  void pop_back() { size_--; }
+  void pop_back() {
+    if (size_ == 0) {
+      throw std::runtime_error("pop_back on empty buffer");
+    }
+    size_--;
+  }
 
-  void print() {
+  void printPhysical() {
+    std::cout << "PrintPhysical : ";
     for (int i = 0; i < size_; ++i) {
       std::cout << buffer_[i] << ' ';
     }
@@ -262,7 +295,7 @@ class circular_buffer {
     lhs.swap(rhs);
   }
 
- private:
+ public:
   size_type cap_ = 0;
   size_type head_ = 0;
   size_type size_ = 0;

@@ -9,6 +9,7 @@ class circular_buffer {
  public:
   using value_type = T;
   using reference = T&;
+  using pointer = T*;
   using const_reference = const T&;
   using size_type = std::size_t;
   using allocator_type = Allocator;
@@ -23,32 +24,29 @@ class circular_buffer {
     using difference_type = std::ptrdiff_t;
     using iterator_category = std::random_access_iterator_tag;
 
-    base_iterator(size_type capacity, size_type head, size_type size,
-                  pointer ptr, size_type index)
-        : cap_(capacity),
-          head_(head),
-          size_(size),
-          begin_(ptr),
-          index_(index) {}
+    base_iterator(pointer buff_begin, pointer element)
+        : buff_(buff_begin), it_(element) {}
 
     base_iterator() = default;
     base_iterator(const base_iterator& other) = default;
     base_iterator& operator=(const base_iterator& other) = default;
     ~base_iterator() = default;
 
-    reference operator*() const { return begin_[(head_ + index_) % cap_]; }
+    reference operator*() const {
+      return *it_;
+    }
 
     bool operator==(const base_iterator& other) const {
-      return (index_ == other.index_ && begin_ == other.begin_);
+      return (it_ == other.it_ && buff_ == other.buff_);
     }
     bool operator!=(const base_iterator& other) const {
       return !(*this == other);
     }
 
-    pointer operator->() const { return begin_ + index_; }
+    pointer operator->() const { return it_; }
 
     base_iterator& operator++() {
-      index_++;
+      it_++;
       return *this;
     }
     base_iterator operator++(int) {
@@ -58,7 +56,7 @@ class circular_buffer {
     }
 
     base_iterator& operator--() {
-      index_--;
+      it_--;
       return *this;
     }
     base_iterator operator--(int) {
@@ -68,23 +66,19 @@ class circular_buffer {
     }
 
     base_iterator& operator+(difference_type value) {
-      index_ += value;
+      it_ += value;
       return *this;
     }
 
     base_iterator& operator-(difference_type value) {
-      index_ -= value;
+      it_ -= value;
 
       return *this;
     }
 
    private:
-    // Swappable
-    size_type cap_ = 0;
-    size_type head_ = 0;
-    size_type size_ = 0;
-    pointer begin_ = nullptr;
-    size_type index_ = 0;
+    pointer buff_;
+    pointer it_;
   };
 
   using iterator = base_iterator<false>;
@@ -92,9 +86,17 @@ class circular_buffer {
   using reverse_iterator = base_iterator<false>;
   using const_reverse_iterator = base_iterator<true>;
 
-  circular_buffer(size_t capacity) : cap_(capacity) {
-    buffer_ = alloc_.allocate(capacity);
-    // reinterpret_cast<T*>(new char[sizeof(value_type) * capacity]);
+  // circular_buffer(size_t capacity) : capacity()(capacity) {
+  //   buffer_ = alloc_.allocate(capacity);
+  //   // reinterpret_cast<T*>(new char[sizeof(value_type) * capacity]);
+  // }
+
+  circular_buffer(size_t capacity) {
+    buff_ = alloc_.allocate(capacity);
+    buff_end_ = buff_ + capacity;
+    first_ = buff_;
+    last_ = buff_;
+    size_ = 0;
   }
 
   circular_buffer(const allocator_type& alloc) : alloc_(alloc) {}
@@ -114,7 +116,7 @@ class circular_buffer {
       : circular_buffer(list.size()) {
     for (typename std::initializer_list<T>::iterator it = list.begin();
          it != list.end(); ++it) {
-      this->push_back(*it);
+      push_back(*it);
     }
   }
 
@@ -196,53 +198,96 @@ class circular_buffer {
   const_reference back() const {}
   //   or const value_type ref?
   // new(newarr + index) T(arr_[index]);
+  // void push_front(value_type value) {
+  //   head_ = (head_ - 1 + capacity()) % capacity();
+  //   new (buffer_ + head_) value_type(value);
+  //   if (size_ != capacity()) {
+  //     size_++;
+  //   }
+  // }
+
   void push_front(value_type value) {
-    head_ = (head_ - 1 + cap_) % cap_;
-    new (buffer_ + head_) value_type(value);
-    if (size_ != cap_) {
+    decrement(first_);
+    assign_value(first_, value);
+    if (is_full()) {
+      last_ = first_;
+    } else {
       size_++;
     }
   }
 
+  // void push_back(value_type value) {
+  //   new (buffer_ + (head_ + size_) % capacity()) value_type(value);
+  //   if (size_ != capacity()) {
+  //     size_++;
+  //   } else {
+  //     head_++;
+  //     head_ = head_ % capacity();
+  //   }
+  // }
+
   void push_back(value_type value) {
-    new (buffer_ + (head_ + size_) % cap_) value_type(value);
-    if (size_ != cap_) {
-      size_++;
+    assign_value(last_, value);
+    increment(last_);
+    if (is_full()) {
+      first_ = last_;
     } else {
-      head_++;
-      head_ = head_ % cap_;
+      ++size_;
     }
   }
 
   void pop_front() {
-    if (size_ == 0) {
-      throw std::runtime_error("pop_front on empty buffer");
-    }
-    head_ = (head_ + 1) % cap_;
-    size_--;
+    // if (size_ == 0) {
+    //   throw std::runtime_error("pop_front on empty buffer");
+    // }
+    // head_ = (head_ + 1) % capacity();
+    // size_--;
   }
 
   void pop_back() {
-    if (size_ == 0) {
-      throw std::runtime_error("pop_back on empty buffer");
-    }
-    size_--;
+    // if (size_ == 0) {
+    //   throw std::runtime_error("pop_back on empty buffer");
+    // }
+    // size_--;
   }
 
-  void printPhysical() {
-    std::cout << "PrintPhysical : ";
-    for (int i = 0; i < size_; ++i) {
-      std::cout << buffer_[i] << ' ';
-    }
-    std::cout << '\n';
+  void decrement(pointer& p) const {
+    if (p == buff_) p = buff_end_;
+    --p;
   }
 
   reference operator[](size_type index) {
-    return buffer_[(head_ + index) % cap_];
+    /*
+    Если расстояние до нужного элемента считая от first_ меньше чем расстояние
+    до конца : возвращаем просто сдвиг на index от начала
+    Иначе происходит wrap_around с самого начала
+    */
+    if (index < buff_end_ - first_) {
+      return *(first_ + index);
+    } else {
+      return *(first_ + index - capacity());
+    }
   }
 
   const_reference operator[](size_type index) const {
-    return buffer_[(head_ + index) % cap_];
+    if (index < buff_end_ - first_) {
+      return first_ + index;
+    } else {
+      return first_ + index - capacity();
+    }
+  }
+
+  void assign_value(pointer p, value_type value) { *p = value; }
+
+  bool is_full() { return size_ == capacity(); }
+
+  size_type capacity() { return buff_end_ - buff_; }
+
+  void increment(pointer& p) {
+    ++p;
+    if (p == buff_end_) {
+      p = buff_;
+    }
   }
 
   reference at(size_type index) {}
@@ -252,32 +297,24 @@ class circular_buffer {
   circular_buffer& operator=(const circular_buffer& other) {}
 
   ~circular_buffer() {
-    alloc_.deallocate(buffer_, cap_);
+    alloc_.deallocate(buff_, capacity());
     // for(int i = 0; i < size_; ++i) {
     //   (buffer_ + i)->~T();
     // }
     // delete[] reinterpret_cast<char*>(buffer_);
   }
 
-  iterator begin() { return iterator(cap_, head_, size_, buffer_, 0); }
+  iterator begin() { return iterator(buff_, first_); }
 
-  const_iterator begin() const {
-    return const_iterator(cap_, head_, size_, buffer_, 0);
-  }
+  const_iterator begin() const { return const_iterator(buff_, first_); }
 
-  iterator end() { return iterator(cap_, head_, size_, buffer_, size_); }
+  iterator end() { return iterator(buff_, last_); }
 
-  const_iterator end() const {
-    return const_iterator(cap_, head_, size_, buffer_, size_);
-  }
+  const_iterator end() const { return const_iterator(buff_, last_); }
 
-  const_iterator cbegin() const {
-    return const_iterator(cap_, head_, size_, buffer_, size_);
-  }
+  const_iterator cbegin() const { return const_iterator(buff_, last_); }
 
-  const_iterator cend() const {
-    return const_iterator(cap_, head_, size_, buffer_, size_);
-  }
+  const_iterator cend() const { return const_iterator(buff_, last_); }
 
   bool operator==(const circular_buffer& other) { return true; }
 
@@ -285,7 +322,7 @@ class circular_buffer {
 
   size_type size() { return size_; }
 
-  size_type max_size() { return cap_; }
+  size_type max_size() { return capacity(); }
 
   bool empty() { return size_ == 0; }
 
@@ -295,10 +332,11 @@ class circular_buffer {
     lhs.swap(rhs);
   }
 
- public:
-  size_type cap_ = 0;
-  size_type head_ = 0;
-  size_type size_ = 0;
-  T* buffer_ = nullptr;
+ private:
+  pointer buff_;
+  pointer buff_end_;
+  pointer first_;
+  pointer last_;
+  size_type size_;
   allocator_type alloc_;
 };

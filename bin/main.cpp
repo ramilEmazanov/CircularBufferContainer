@@ -1,14 +1,14 @@
 #include <exception>
 #include <iostream>
+#include <string>
 #include <vector>
 
 #include "circular_buffer.h"
 
 template <class T>
 void printLogic(circular_buffer<T>& circ) {
-  std::cout << circ.size() << '\n';
-  for (int i = 0; i < circ.size(); ++i) {
-    std::cout << circ[i] << ' ';
+  for (auto it = circ.begin(); it != circ.end(); ++it) {
+    std::cout << *it << ' ';
   }
   std::cout << '\n';
 }
@@ -20,26 +20,40 @@ bool tester(const T& container) {
   for (const auto& expected_value : expected_elements) {
     if (it == container.end() || *it != expected_value) {
       std::cout << *it << '\n';
-      return false; 
+      return false;
     }
     ++it;
   }
   return true;
 }
 
-int main() {
-  circular_buffer<int> cb(5);
-  circular_buffer<int> listed{1, 2, 3, 4, 5};
-
-  // listed.erase(listed.cbegin() + 2);
-  // std::cout << *(listed.cbegin() + 2) << '\n';
-
-  for (int i = 0; i < 20; ++i) {
-    if (i % 2 == 0) {
-      cb.push_back(i);
-    } else {
-      cb.push_front(i);
-    }
-    printLogic(listed);
+template <class T>
+void printRaw(circular_buffer<T>& circ) {
+  for (int i = 0; i < circ.size(); ++i) {
+    std::cout << circ.buff_[i] << ' ';
   }
+  std::cout << '\n';
+}
+
+int main() {
+  circular_buffer<int> cb = {5, 4, 3, 2, 1};
+  printLogic(cb);
+
+  cb.assign({1, 2, 3, 4, 5});
+
+
+  // circular_buffer<std::string> cb(3);
+  // cb.push_back("aaa");
+  // cb.push_back("bbb");
+  // cb.push_back("ccc");
+  // printLogic(cb);
+  // cb.assign(5, 7);
+  // for (int i = 0; i < 5; ++i) {
+  //   if (i % 2 == 0) {
+  //     cb.push_back(i);
+  //   } else {
+  //     cb.push_front(i);
+  //   }
+  //   printLogic(cb);
+  // }
 }

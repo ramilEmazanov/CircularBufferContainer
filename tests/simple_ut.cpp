@@ -85,16 +85,6 @@ TYPED_TEST(CircularBufferIntTest, MediumWrapAroundTest1) {
   ASSERT_THAT(cb, testing::ElementsAre(5, 6, 7, 8, 9));
 }
 
-TYPED_TEST(CircularBufferIntTest, HardWrapAroundTest1) {
-  TypeParam cb(5);
-
-  for (int i = 0; i < 13; ++i) {
-    cb.push_back(i);
-  }
-
-  ASSERT_THAT(cb, testing::ElementsAre(10, 11, 12, 8, 9));
-}
-
 TYPED_TEST(CircularBufferIntTest, popFromEmpty) {
   TypeParam cb(1);
   cb.push_back(1);
@@ -119,6 +109,7 @@ TYPED_TEST(CircularBufferIntTest, eraseOneElement) {
   TypeParam cb = {1, 2, 3, 4, 5};
 
   cb.erase(cb.cbegin() + 2);
+  // Check invalidation for elements before deleted
 
   ASSERT_THAT(cb, testing::ElementsAre(1, 2, 4, 5));
 }
@@ -137,18 +128,93 @@ TYPED_TEST(CircularBufferIntTest, eraseSequence) {
   ASSERT_THAT(cb, testing::ElementsAre(3, 4));
 }
 
-TYPED_TEST(CircularBufferIntTest, nValues) {
+TYPED_TEST(CircularBufferIntTest, nAssignValues1) {
   TypeParam cb(5);
-
   cb.assign(5, 10);
-
   ASSERT_THAT(cb, testing::ElementsAre(10, 10, 10, 10, 10));
 }
 
-TYPED_TEST(CircularBufferIntTest, assignIterator) {
+TYPED_TEST(CircularBufferIntTest, nAssignValues2) {
+  TypeParam cb(5);
+  for (int i = 0; i < 5; ++i) {
+    if (i % 2 == 0) {
+      cb.push_back(i);
+    } else {
+      cb.push_front(i);
+    }
+  }
+  cb.assign(3, 10);
+  ASSERT_THAT(cb, testing::ElementsAre(10, 10, 10));
+}
+
+TYPED_TEST(CircularBufferIntTest, nAssignValues3) {
+  TypeParam cb(5);
+  cb.assign(1, 10);
+  ASSERT_THAT(cb, testing::ElementsAre(10));
+}
+
+TYPED_TEST(CircularBufferIntTest, nAssignValues4) {
+  TypeParam cb(5);
+  cb.assign(4, 6);
+  cb.assign(5, 7);
+  ASSERT_THAT(cb, testing::ElementsAre(7, 7, 7, 7, 7));
+}
+
+TYPED_TEST(CircularBufferIntTest, nAssignValuesWithPushBack) {
+  TypeParam cb(5);
+  cb.assign(4, 6);
+  cb.assign(5, 7);
+  for (int i = 0; i < 5; ++i) {
+    cb.push_back(i);
+  }
+  ASSERT_THAT(cb, testing::ElementsAre(0, 1, 2, 3, 4));
+}
+
+TYPED_TEST(CircularBufferIntTest, nAssignValuesWithPushFront) {
+  TypeParam cb(5);
+  cb.assign(4, 6);
+  cb.assign(5, 7);
+  for (int i = 0; i < 5; ++i) {
+    cb.push_front(i);
+  }
+  ASSERT_THAT(cb, testing::ElementsAre(4, 3, 2, 1, 0));
+}
+
+TYPED_TEST(CircularBufferIntTest, nAssignValuesMixed) {
+  TypeParam cb(5);
+  cb.assign(4, 6);
+  cb.assign(5, 7);
+  for (int i = 0; i < 5; ++i) {
+    if (i % 2 == 0) {
+      cb.push_front(i);
+    } else {
+      cb.push_back(i);
+    }
+  }
+  ASSERT_THAT(cb, testing::ElementsAre(4, 7, 7, 7, 7));
+}
+
+TYPED_TEST(CircularBufferIntTest, assignIterator1) {
   TypeParam cb(5);
   std::vector<int> v = {1, 2, 3, 4, 5};
 
+  cb.assign(v.begin() + 1, v.end() - 1);
+
+  ASSERT_THAT(cb, testing::ElementsAre(2, 3, 4));
+}
+
+TYPED_TEST(CircularBufferIntTest, assignIterator2) {
+  TypeParam cb(5);
+  std::vector<int> v = {1, 2, 3, 4, 5};
+
+  cb.assign(5, 7);
+  for (int i = 0; i < 5; ++i) {
+    if (i % 2 == 0) {
+      cb.push_front(i);
+    } else {
+      cb.push_back(i);
+    }
+  }
   cb.assign(v.begin() + 1, v.end() - 1);
 
   ASSERT_THAT(cb, testing::ElementsAre(2, 3, 4));

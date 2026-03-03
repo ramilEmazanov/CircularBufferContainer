@@ -3,7 +3,19 @@
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
 
-TEST(ExtendableBufferTest, simpleTest) {
+template <typename T>
+class CircularBufferIntTestExtended : public testing::Test {};
+
+using CircularBufferIntTypes = testing::Types<circular_buffer<int, false>
+#ifdef RUN_EXT_TESTS
+                                              ,
+                                              circular_buffer<int, true>
+#endif
+                                              >;
+TYPED_TEST_SUITE(CircularBufferIntTestExtended, CircularBufferIntTypes);
+
+
+TEST(CircularBufferIntTestExtended, simpleTest) {
     circular_buffer<int, true> cb(5);
     cb.push_back(1);
     cb.push_back(2);
@@ -14,7 +26,7 @@ TEST(ExtendableBufferTest, simpleTest) {
     ASSERT_THAT(cb, testing::ElementsAre(1, 2, 3, 4, 5, 6));
 }
 
-TEST(ExtendableBufferTest, insertInTheMiddle) {
+TEST(CircularBufferIntTestExtended, insertInTheMiddle) {
     circular_buffer<int, true> cb(5);
     cb.push_back(1);
     cb.push_back(2);
@@ -26,21 +38,20 @@ TEST(ExtendableBufferTest, insertInTheMiddle) {
     ASSERT_THAT(cb, testing::ElementsAre(1, 2, 6, 7, 8, 3, 4, 5));
 }
 
-TYPED_TEST(CircularBufferIntTest, expand) {
+TYPED_TEST(CircularBufferIntTestExtended, expand) {
     circular_buffer<int, true> cb = {1, 2, 3, 4, 5};
     cb.resize(7, 6);
 
     ASSERT_THAT(cb, testing::ElementsAre(1, 2, 3, 4, 5, 6, 6));
 }
 
-TYPED_TEST(CircularBufferIntTest, shrink) {
+TYPED_TEST(CircularBufferIntTestExtended, shrink) {
     circular_buffer<int, true> cb = {1, 2, 3, 4, 5};
     cb.resize(3);
-
     ASSERT_THAT(cb, testing::ElementsAre(1, 2, 3));
 }
 
-TYPED_TEST(CircularBufferIntTest, insertValue) {
+TYPED_TEST(CircularBufferIntTestExtended, insertValue) {
     circular_buffer<int, true> cb(5); // {3, 1, 0, 2, 4}
     for (int i = 0; i < 5; ++i) {
         if (i % 2 == 0) {
@@ -54,7 +65,7 @@ TYPED_TEST(CircularBufferIntTest, insertValue) {
     ASSERT_THAT(cb, testing::ElementsAre(3, 1, 10, 0, 2, 4));
 }
 
-TYPED_TEST(CircularBufferIntTest, insertNValues) {
+TYPED_TEST(CircularBufferIntTestExtended, insertNValues) {
     circular_buffer<int, true> cb(7); // {3, 1, 0, 2, 4}
     for (int i = 0; i < 5; ++i) {
         if (i % 2 == 0) {
@@ -68,7 +79,7 @@ TYPED_TEST(CircularBufferIntTest, insertNValues) {
     ASSERT_THAT(cb, testing::ElementsAre(3, 1, 8, 8, 0, 2, 4));
 }
 
-TYPED_TEST(CircularBufferIntTest, insertIterators) {
+TYPED_TEST(CircularBufferIntTestExtended, insertIterators) {
     circular_buffer<int, true> cb(8); // {3, 1, 0, 2, 4}
     std::vector<int> v = {1, 2, 3, 4, 5};
     for (int i = 0; i < 5; ++i) {
@@ -83,7 +94,7 @@ TYPED_TEST(CircularBufferIntTest, insertIterators) {
     ASSERT_THAT(cb, testing::ElementsAre(3, 1, 2, 3, 4, 0, 2, 4));
 }
 
-TYPED_TEST(CircularBufferIntTest, insertInitializerList) {
+TYPED_TEST(CircularBufferIntTestExtended, insertInitializerList) {
     circular_buffer<int, true> cb(8); // {3, 1, 0, 2, 4}
     for (int i = 0; i < 5; ++i) {
         if (i % 2 == 0) {

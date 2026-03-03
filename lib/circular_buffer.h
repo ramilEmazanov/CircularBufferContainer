@@ -15,6 +15,7 @@ class circular_buffer {
   using size_type = std::size_t;
   using allocator_type = Allocator;
   using difference_type = std::ptrdiff_t;
+  using alloc_traits = std::allocator_traits<Allocator>;
 
   template <bool IsConst>
   class base_iterator {
@@ -34,16 +35,18 @@ class circular_buffer {
     base_iterator& operator=(const base_iterator& other) = default;
     ~base_iterator() = default;
 
-    reference operator*() const { return *it_; }
-
-    bool operator==(const base_iterator& other) const {
-      return (it_ == other.it_ && buff_ == other.buff_);
-    }
-    bool operator!=(const base_iterator& other) const {
-      return !(*this == other);
+    reference operator*() const {
+      if (it_ == nullptr) {
+        throw std::runtime_error("End iterator dereference\n");
+      }
+      return *it_;
     }
 
     pointer operator->() const { return it_; }
+
+    reference operator[](difference_type index) const {
+      return *(buff_->pointer_addition(it_, index));
+    }
 
     base_iterator& operator++() {
       buff_->increment(it_);
@@ -51,6 +54,54 @@ class circular_buffer {
         it_ = nullptr;
       }
       return *this;
+    }
+
+    base_iterator& operator+=(difference_type n) {
+      if (n == 0) {
+        return *this;
+      }
+      if (it_ == nullptr) {
+        return *this;
+      }
+      if (n > 0) {
+        difference_type index = logic_index(it_);
+        if (index + n > buff_->size_) {
+          throw std::runtime_error("Out of range\n");
+        }
+        it_ = buff_->pointer_addition(it_, n);
+        if (it_ == buff_->last_) {
+          it_ = nullptr;
+        }
+      } else {
+        *this -= -n;
+      }
+      return *this;
+    }
+
+    base_iterator& operator-=(difference_type n) {
+      if (n == 0) {
+        return *this;
+      }
+      if (it_ == nullptr) {
+        it_ = buff_->last_;
+      }
+      if (n > 0) {
+        it_ = buff_->pointer_subtraction(it_, n);
+      } else {
+        *this += -n;
+      }
+      return *this;
+    }
+
+    difference_type logic_index(pointer ptr) const {
+      if (ptr == nullptr) {
+        return buff_->size_;
+      }
+      if (ptr >= buff_->first_) {
+        return ptr - buff_->first_;
+      } else {
+        return (ptr - buff_->buff_) + (buff_->buff_end_ - buff_->first_);
+      }
     }
 
     base_iterator operator++(int) {
@@ -73,14 +124,54 @@ class circular_buffer {
       return copy;
     }
 
-    base_iterator& operator+(difference_type value) {
-      it_ += value;
-      return *this;
+    base_iterator operator+(difference_type n) const {
+      base_iterator copy = *this;
+      copy += n;
+      return copy;
     }
 
-    base_iterator& operator-(difference_type value) {
-      it_ -= value;
-      return *this;
+    base_iterator operator-(difference_type n) const {
+      base_iterator copy = *this;
+      copy -= n;
+      return copy;
+    }
+
+    difference_type operator-(const base_iterator& other) const {
+      if (buff_ != other.buff_) {
+        throw std::runtime_error("Different iterators arithmetics\n");
+      }
+      return logic_index(it_) - logic_index(other.it_);
+    }
+
+    bool operator<(const base_iterator& other) const {
+      return *this - other < 0;
+    }
+
+    bool operator>(const base_iterator& other) const { return other < *this; }
+
+    bool operator<=(const base_iterator& other) const {
+      return !(*this > other);
+    }
+
+    bool operator>=(const base_iterator& other) const {
+      return !(*this < other);
+    }
+
+    bool operator==(const base_iterator& other) const {
+      return (it_ == other.it_ && buff_ == other.buff_);
+    }
+    bool operator!=(const base_iterator& other) const {
+      return !(*this == other);
+    }
+
+    friend base_iterator operator+(difference_type n, base_iterator it) {
+      it += n;
+      return it;
+    }
+
+    friend base_iterator operator-(difference_type n, base_iterator it) {
+      it -= n;
+      return it;
     }
 
    public:
@@ -93,25 +184,38 @@ class circular_buffer {
   using reverse_iterator = base_iterator<false>;
   using const_reverse_iterator = base_iterator<true>;
 
-  // circular_buffer(size_t capacity) : capacity()(capacity) {
-  //   // buffer_ = alloc_.allocate(capacity);
-  //   // reinterpret_cast<T*>(new char[sizeof(value_type) * capacity]);
-  // }
-
   circular_buffer(size_t capacity) {
-    buff_ = reinterpret_cast<T*>(new char[sizeof(value_type) * capacity]);;
+    buff_ = alloc_traits::allocate(alloc_, capacity);
     buff_end_ = buff_ + capacity;
     first_ = buff_;
     last_ = buff_;
     size_ = 0;
   }
 
+  // Fix
   circular_buffer(const allocator_type& alloc) : alloc_(alloc) {}
 
-  circular_buffer(circular_buffer&& other, const allocator_type& alloc)
-      : alloc_(alloc) {}
+  circular_buffer(size_type capacity, allocator_type& alloc) {
+    alloc_ = alloc;
+    buff_ = alloc_traits::allocate(alloc, capacity);
+    buff_end_ = buff_ + capacity;
+    first_ = buff_;
+    last_ = buff_;
+    size_ = 0;
+  }
 
-  circular_buffer(const circular_buffer& other) {}
+  circular_buffer(const circular_buffer& other) {
+    size_type capacity = other.capacity();
+    alloc_ = alloc_traits::select_on_container_copy_construction(other.alloc_);
+    buff_ = alloc_traits::allocate(alloc_, capacity);
+    buff_end_ = buff_ + capacity;
+    for (size_type i = 0; i < other.size_; ++i) {
+      alloc_traits::construct(alloc_, buff_ + i, other.buff_[i]);
+    }
+    size_ = other.size_;
+    first_ = buff_ + (other.first_ - other.buff_);
+    last_ = buff_ + (other.last_ - other.buff_);
+  }
 
   circular_buffer(size_type size, value_type value) {}
 
@@ -123,19 +227,14 @@ class circular_buffer {
       : circular_buffer(list.size()) {
     for (typename std::initializer_list<T>::iterator it = list.begin();
          it != list.end(); ++it) {
+      // Should use push_back() ?
       push_back(*it);
     }
   }
 
+  circular_buffer& operator=(const circular_buffer& other) {}
+
   allocator_type get_allocator() { return alloc_; }
-
-  // C(std::from_range, rg)
-
-  // C(il) - initializer list constructor
-
-  // v = il - assignment operator from initializer_list
-
-  // iterator emplace(p, args) {}
 
   reverse_iterator rbegin() { return base_iterator(); }
 
@@ -149,15 +248,24 @@ class circular_buffer {
 
   const_reverse_iterator crend() const { return base_iterator(); }
 
-  iterator insert(const_iterator it, value_type value) {}
+  iterator insert(const_iterator it, value_type value) {
+    // Expand
+    // After it put value
+  }
 
-  iterator insert(iterator it, value_type value) {}
+  iterator insert(iterator it, value_type value) {
+    std::cout << "Here\n";
+    return iterator();
+  }
 
-  iterator insert(iterator it, std::initializer_list<T> list) {}
+  iterator insert(iterator it, std::initializer_list<T> list) {
+    // After it put everything from list
+  }
 
-  // iterator insert(const_iterator it, rvalue) {}
 
-  iterator insert(const_iterator it, size_type count, value_type value) {}
+  iterator insert(const_iterator it, size_type count, value_type value) {
+    // After it count times put value
+  }
 
   iterator insert(const_iterator before, iterator range_begin,
                   iterator range_end) {}
@@ -169,9 +277,35 @@ class circular_buffer {
 
   void clear() {}
 
-  void resize(size_type new_size) {}
+  void resize(size_type new_size) {
+    /*
+    Delete all elements that after new_size
+    */
+  }
 
-  void resize(size_type new_size, value_type value) {}
+  void resize(size_type new_size, value_type value) {
+    // It might not be full?
+    // Think what happens if not full
+    pointer new_buff = alloc_traits::allocate(alloc_, new_size);
+    pointer new_buff_end = new_buff + new_size;
+    for (size_type i = 0; i < size_; ++i) {
+      alloc_traits::construct(alloc_, new_buff + i, buff_[i]);
+    }
+    auto first_shift = first_ - buff_;
+    auto end_shift = last_ - buff_;
+    first_ = new_buff + first_shift;
+    last_ = new_buff + end_shift;
+    
+    // Change where first_ and end_
+    // push_back(value)
+    for (size_type i = 0; i < size_; ++i) {
+      alloc_traits::destroy(alloc_, buff_[i]);
+    }
+    alloc_traits::deallocate(alloc_, buff_, capacity());
+    buff_ = new_buff;
+    buff_end_ = new_buff_end;
+    for()
+  }
 
   template <class U, class Q>
   void assign(U first_arg, Q second_arg) {
@@ -179,6 +313,26 @@ class circular_buffer {
       assign_impl_integer(first_arg, second_arg);
     } else {
       assign_impl(first_arg, second_arg);
+    }
+  }
+
+  pointer pointer_addition(pointer ptr, difference_type n) const {
+    difference_type shift = n;
+    if (n > capacity()) {
+      shift = shift % capacity();
+    }
+    if (shift < buff_end_ - ptr) {
+      return ptr + shift;
+    } else {
+      return ptr + (shift - capacity());
+    }
+  }
+
+  pointer pointer_subtraction(pointer ptr, difference_type n) const {
+    if (n > ptr - buff_) {
+      return ptr - (n - capacity());
+    } else {
+      return ptr - n;
     }
   }
 
@@ -197,26 +351,26 @@ class circular_buffer {
     }
   }
 
-  template<class InputIterator>
+  template <class InputIterator>
   void assign_impl(InputIterator begin_pos, InputIterator end_pos) {
     // Exception if end_pos - begin_pos > capacity()
     pointer p = begin().it_;
     last_ = p;
-    for(InputIterator it = begin_pos; it != end_pos; ++it) {
-      assign_value(p,*it);
+    for (InputIterator it = begin_pos; it != end_pos; ++it) {
+      assign_value(p, *it);
       increment(p);
       increment(last_);
     }
   }
 
   void assign(std::initializer_list<T> list) {
-    if(list.size() > capacity()) {
+    if (list.size() > capacity()) {
       throw std::runtime_error("Overflow\n");
     }
     size_ = 0;
     pointer ptr = begin().it_;
     last_ = ptr;
-    for(auto it = list.begin(); it != list.end(); ++it) { 
+    for (auto it = list.begin(); it != list.end(); ++it) {
       assign_value(ptr, *it);
       increment(ptr);
       increment(last_);
@@ -224,30 +378,26 @@ class circular_buffer {
     }
   }
 
-  reference front() {}
-
-  const_reference front() const {}
-
-  reference back() {}
-
-  const_reference back() const {}
-
-  void push_front(value_type value) {
-    decrement(first_);
-    assign_value(first_, value);
+  void push_front(const value_type& value) {
     if (is_full()) {
+      decrement(first_);
+      assign_value(first_, value);
       last_ = first_;
     } else {
+      decrement(first_);
+      alloc_traits::construct(alloc_, first_, value);
       size_++;
     }
   }
 
-  void push_back(value_type value) {
-    assign_value(last_, value);
-    increment(last_);
+  void push_back(const value_type& value) {
     if (is_full()) {
+      assign_value(last_, value);
+      increment(last_);
       first_ = last_;
     } else {
+      alloc_traits::construct(alloc_, last_, value);
+      increment(last_);
       ++size_;
     }
   }
@@ -332,12 +482,6 @@ class circular_buffer {
     }
   }
 
-  void assign_value(pointer p, value_type value) { *p = value; }
-
-  bool is_full() { return size_ == capacity(); }
-
-  size_type capacity() { return buff_end_ - buff_; }
-
   void increment(pointer& p) const {
     ++p;
     if (p == buff_end_) {
@@ -345,19 +489,22 @@ class circular_buffer {
     }
   }
 
+  ~circular_buffer() {
+    for (size_type i = 0; i < size_; ++i) {
+      alloc_traits::destroy(alloc_, buff_ + i);
+    }
+    // alloc_traits::deallocate(alloc_, buff_, capacity());
+  }
+
   reference at(size_type index) {}
 
   const_reference at(size_type index) const {}
 
-  circular_buffer& operator=(const circular_buffer& other) {}
+  size_type capacity() const { return buff_end_ - buff_; }
 
-  ~circular_buffer() {
-    // alloc_.deallocate(buff_, capacity());
-    for(int i = 0; i < size_; ++i) {
-      (buff_ + i)->~T();
-    }
-    delete[] reinterpret_cast<char*>(buff_);
-  }
+  void assign_value(pointer p, const value_type& value) { *p = value; }
+
+  bool is_full() { return size_ == capacity(); }
 
   iterator begin() { return iterator(this, first_); }
 
@@ -375,11 +522,27 @@ class circular_buffer {
 
   bool operator!=(const circular_buffer& other) { return !(*this == other); }
 
-  size_type size() { return size_; }
+  size_type size() const { return size_; }
 
-  size_type max_size() { return capacity(); }
+  size_type max_size() const { return capacity(); }
 
-  bool empty() { return size_ == 0; }
+  bool empty() const { return size_ == 0; }
+
+  reference front() { return *first_; }
+
+  const_reference front() const { return *first_; }
+
+  reference back() {
+    pointer ptr = last_;
+    decrement(ptr);
+    return *ptr;
+  }
+
+  const_reference back() const {
+    pointer ptr = last_;
+    decrement(ptr);
+    return *ptr;
+  }
 
   void swap(circular_buffer& other) {}
 

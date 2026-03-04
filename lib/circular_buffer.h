@@ -57,14 +57,12 @@ class circular_buffer {
     }
 
     base_iterator& operator+=(difference_type n) {
-      if (n == 0) {
+      if (n == 0 || it_ == nullptr) {
         return *this;
       }
-      if (it_ == nullptr) {
-        return *this;
-      }
+
       if (n > 0) {
-        difference_type index = logic_index(it_);
+        difference_type index = buff_->logic_index(it_);
         if (index + n > buff_->size_) {
           throw std::runtime_error("Out of range\n");
         }
@@ -72,9 +70,10 @@ class circular_buffer {
         if (it_ == buff_->last_) {
           it_ = nullptr;
         }
-      } else {
-        *this -= -n;
+        return *this;
       }
+
+      *this -= -n;
       return *this;
     }
 
@@ -91,17 +90,6 @@ class circular_buffer {
         *this += -n;
       }
       return *this;
-    }
-
-    difference_type logic_index(pointer ptr) const {
-      if (ptr == nullptr) {
-        return buff_->size_;
-      }
-      if (ptr >= buff_->first_) {
-        return ptr - buff_->first_;
-      } else {
-        return (ptr - buff_->buff_) + (buff_->buff_end_ - buff_->first_);
-      }
     }
 
     base_iterator operator++(int) {
@@ -140,7 +128,7 @@ class circular_buffer {
       if (buff_ != other.buff_) {
         throw std::runtime_error("Different iterators arithmetics\n");
       }
-      return logic_index(it_) - logic_index(other.it_);
+      return buff_->logic_index(it_) - buff_->logic_index(other.it_);
     }
 
     bool operator<(const base_iterator& other) const {
@@ -262,7 +250,6 @@ class circular_buffer {
     // After it put everything from list
   }
 
-
   iterator insert(const_iterator it, size_type count, value_type value) {
     // After it count times put value
   }
@@ -284,27 +271,30 @@ class circular_buffer {
   }
 
   void resize(size_type new_size, value_type value) {
-    // It might not be full?
-    // Think what happens if not full
     pointer new_buff = alloc_traits::allocate(alloc_, new_size);
-    pointer new_buff_end = new_buff + new_size;
-    for (size_type i = 0; i < size_; ++i) {
-      alloc_traits::construct(alloc_, new_buff + i, buff_[i]);
+    size_type i = 0;
+    for (auto it = begin(); it != end(); ++it) {
+      alloc_traits::construct(alloc_, new_buff + i, *it);
+      ++i;
     }
-    auto first_shift = first_ - buff_;
-    auto end_shift = last_ - buff_;
-    first_ = new_buff + first_shift;
-    last_ = new_buff + end_shift;
-    
-    // Change where first_ and end_
-    // push_back(value)
-    for (size_type i = 0; i < size_; ++i) {
-      alloc_traits::destroy(alloc_, buff_[i]);
+    for(i = 0; i < size_; ++i) {
+      alloc_traits::destroy(alloc_, buff_ + i);
     }
     alloc_traits::deallocate(alloc_, buff_, capacity());
+
+    size_type old_size = size_;
+    
     buff_ = new_buff;
-    buff_end_ = new_buff_end;
-    for()
+    buff_end_ = buff_ + new_size;
+    
+    first_ = buff_;
+    last_ = buff_ + old_size;
+    size_ = new_size;
+    for (i = 0; i < new_size - old_size; ++i) {
+      push_back(value);
+    }
+    // Delete old
+
   }
 
   template <class U, class Q>
@@ -333,6 +323,17 @@ class circular_buffer {
       return ptr - (n - capacity());
     } else {
       return ptr - n;
+    }
+  }
+
+  difference_type logic_index(pointer ptr) const {
+    if (ptr == nullptr) {
+      return size_;
+    }
+    if (ptr >= first_) {
+      return ptr - first_;
+    } else {
+      return (ptr - buff_) + (buff_end_ - first_);
     }
   }
 
@@ -493,7 +494,7 @@ class circular_buffer {
     for (size_type i = 0; i < size_; ++i) {
       alloc_traits::destroy(alloc_, buff_ + i);
     }
-    // alloc_traits::deallocate(alloc_, buff_, capacity());
+    alloc_traits::deallocate(alloc_, buff_, capacity());
   }
 
   reference at(size_type index) {}

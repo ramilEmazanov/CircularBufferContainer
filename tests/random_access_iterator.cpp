@@ -21,7 +21,7 @@ using CircularBufferIterTypes = testing::Types<circular_buffer<int, false>
 TYPED_TEST_SUITE(CircularBufferIterTest, CircularBufferIterTypes);
 
 template <class Container>
-static void WrapAround(Container& cb) {
+void WrapAround(Container& cb) {
   for (int x : {7, 8, 9, 10, 11}) cb.push_back(x);
   cb.pop_front();
   cb.push_back(12);

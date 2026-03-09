@@ -172,25 +172,22 @@ class circular_buffer {
   using reverse_iterator = base_iterator<false>;
   using const_reverse_iterator = base_iterator<true>;
 
-  circular_buffer(size_t capacity) {
-    buff_ = alloc_traits::allocate(alloc_, capacity);
-    buff_end_ = buff_ + capacity;
-    first_ = buff_;
-    last_ = buff_;
-    size_ = 0;
-  }
+  circular_buffer(const Allocator& alloc)
+      : alloc_(alloc),
+        buff_(nullptr),
+        buff_end_(nullptr),
+        first_(nullptr),
+        last_(nullptr),
+        size_(0) {}
 
-  // Fix
-  circular_buffer(const allocator_type& alloc) : alloc_(alloc) {}
-
-  circular_buffer(size_type capacity, allocator_type& alloc) {
-    alloc_ = alloc;
-    buff_ = alloc_traits::allocate(alloc, capacity);
-    buff_end_ = buff_ + capacity;
-    first_ = buff_;
-    last_ = buff_;
-    size_ = 0;
-  }
+  circular_buffer(size_type capacity,
+                  const allocator_type& alloc = allocator_type())
+      : alloc_(alloc),
+        buff_(alloc_traits::allocate(alloc_, capacity)),
+        buff_end_(buff_ + capacity),
+        first_(buff_),
+        last_(buff_),
+        size_(0) {}
 
   circular_buffer(const circular_buffer& other) {
     size_type capacity = other.capacity();
@@ -215,7 +212,6 @@ class circular_buffer {
       : circular_buffer(list.size()) {
     for (typename std::initializer_list<T>::iterator it = list.begin();
          it != list.end(); ++it) {
-      // Should use push_back() ?
       push_back(*it);
     }
   }
@@ -241,60 +237,217 @@ class circular_buffer {
     // After it put value
   }
 
-  iterator insert(iterator it, value_type value) {
-    std::cout << "Here\n";
+  iterator insert(iterator add, value_type value) {
+    size_type new_capacity = capacity() + 1;
+    pointer new_buff = alloc_traits::allocate(alloc_, new_capacity);
+    size_type i = 0;
+    auto it = begin();
+
+    for (it = begin(); it != add; ++it) {
+      alloc_traits::construct(alloc_, new_buff + i, *it);
+      ++i;
+    }
+
+    alloc_traits::construct(alloc_, new_buff + i, value);
+    while (it != end()) {
+      i++;
+      alloc_traits::construct(alloc_, new_buff + i, *it);
+      it++;
+    }
+
+    for (i = 0; i < size_; ++i) {
+      alloc_traits::destroy(alloc_, buff_ + i);
+    }
+    alloc_traits::deallocate(alloc_, buff_, capacity());
+
+    size_type new_size = size_ + 1;
+
+    buff_ = new_buff;
+    buff_end_ = buff_ + new_capacity;
+    first_ = buff_;
+    size_ = new_size;
+    if (size_ == new_capacity) {
+      last_ = first_;
+    } else {
+      last_ = buff_ + size_;
+    }
+
     return iterator();
   }
 
-  iterator insert(iterator it, std::initializer_list<T> list) {
-    // After it put everything from list
+  iterator insert(iterator add, std::initializer_list<T> list) {
+    size_type new_capacity = capacity() + list.size();
+    pointer new_buff = alloc_traits::allocate(alloc_, new_capacity);
+    size_type i = 0;
+    auto it = begin();
+
+    for (it; it != add; ++it) {
+      alloc_traits::construct(alloc_, new_buff + i, *it);
+      ++i;
+    }
+    for (auto init_it = list.begin(); init_it != list.end(); ++init_it) {
+      alloc_traits::construct(alloc_, new_buff + i, *init_it);
+      i++;
+    }
+    i--;
+    while (it != end()) {
+      i++;
+      alloc_traits::construct(alloc_, new_buff + i, *it);
+      it++;
+    }
+
+    for (i = 0; i < size_; ++i) {
+      alloc_traits::destroy(alloc_, buff_ + i);
+    }
+    alloc_traits::deallocate(alloc_, buff_, capacity());
+
+    size_type new_size = size_ + list.size();
+
+    buff_ = new_buff;
+    buff_end_ = buff_ + new_capacity;
+    first_ = buff_;
+    size_ = new_size;
+    if (size_ == new_capacity) {
+      last_ = first_;
+    } else {
+      last_ = buff_ + size_;
+    }
+
+    return iterator();
   }
 
-  iterator insert(const_iterator it, size_type count, value_type value) {
-    // After it count times put value
+  iterator insert(const_iterator add, size_type count, value_type value) {
+    size_type new_capacity = capacity() + count;
+    pointer new_buff = alloc_traits::allocate(alloc_, new_capacity);
+    size_type i = 0;
+    auto it = begin();
+
+    for (it; it != add; ++it) {
+      alloc_traits::construct(alloc_, new_buff + i, *it);
+      ++i;
+    }
+
+    for (int j = 0; j < count; ++j) {
+      alloc_traits::construct(alloc_, new_buff + i, value);
+      ++i;
+    }
+
+    while (it != end()) {
+      i++;
+      alloc_traits::construct(alloc_, new_buff + i, *it);
+      it++;
+    }
+
+    for (i = 0; i < size_; ++i) {
+      alloc_traits::destroy(alloc_, buff_ + i);
+    }
+    alloc_traits::deallocate(alloc_, buff_, capacity());
+
+    size_type new_size = size_ + count;
+
+    buff_ = new_buff;
+    buff_end_ = buff_ + new_capacity;
+    first_ = buff_;
+    size_ = new_size;
+    if (size_ == new_capacity) {
+      last_ = first_;
+    } else {
+      last_ = buff_ + size_;
+    }
+
+    return iterator();
   }
 
   iterator insert(const_iterator before, iterator range_begin,
                   iterator range_end) {}
 
   template <class InputIt>
-  iterator insert(iterator before, InputIt range_begin, InputIt range_end) {}
-
-  // iterator insert(const_iterator it, std::initializer_list)
+  iterator insert(iterator before, InputIt range_begin, InputIt range_end) {
+    if constexpr (std::is_integral_v<InputIt>) {
+      insert(before, range_begin, range_end);
+    } else {
+      // assign_impl(first_arg, second_arg);
+    }
+  }
 
   void clear() {}
 
-  void resize(size_type new_size) {
+  void reallocate(size_type new_capacity, size_type reallocations_count) {}
+
+  void resize(size_type new_capacity) {
     /*
-    Delete all elements that after new_size
-    */
+    1. new_capacity > capacity()
+    2. new_capacity == capacity()
+    3. new_capacity < capacity()
+    Only for shrinking?
+     */
+    if (new_capacity == capacity()) {
+      return;
+    }
+    if (new_capacity < capacity()) {
+      // 1. size_ > new_capacity
+      // 2. size_ < new_capacity
+      // 3. size_ == new_capacity
+      pointer new_buff = alloc_traits::allocate(alloc_, new_capacity);
+      auto it = begin();
+      for (size_type i = 0; i < new_capacity; ++i) {
+        alloc_traits::construct(alloc_, new_buff + i, *it);
+        ++it;
+      }
+      for (int i = 0; i < size_; ++i) {
+        alloc_traits::destroy(alloc_, buff_ + i);
+      }
+      alloc_traits::deallocate(alloc_, buff_, capacity());
+      buff_ = new_buff;
+      buff_end_ = buff_ + new_capacity;
+      first_ = buff_;
+      // last_ = ?????;
+      size_ = new_capacity;
+    } else {
+      // new_capacity > capacity()
+      // move to a longer buff_
+      // copy elements from beginning
+      // the same as with resize(new_capacity, value)
+    }
   }
 
-  void resize(size_type new_size, value_type value) {
-    pointer new_buff = alloc_traits::allocate(alloc_, new_size);
+  void resize(size_type new_capacity, value_type value) {
+    /*
+    1. new_capacity > capacity() - done
+    2. new_capacity == capacity() - done
+    3. new_capacity < capacity()
+    4. new_capacity > size_ > capacity
+    5. new_capacity == size_ == capacity()
+    6. new_capacity < size_ <= capacity()
+
+    1. Buffer is full. new_capacity > capacity()
+    2. Buffer is not full. new_capacity > capacity()
+    */
+    if (new_capacity <= capacity()) return;
+
+    pointer new_buff = alloc_traits::allocate(alloc_, new_capacity);
     size_type i = 0;
     for (auto it = begin(); it != end(); ++it) {
       alloc_traits::construct(alloc_, new_buff + i, *it);
       ++i;
     }
-    for(i = 0; i < size_; ++i) {
+
+    for (i = 0; i < size_; ++i) {
       alloc_traits::destroy(alloc_, buff_ + i);
     }
     alloc_traits::deallocate(alloc_, buff_, capacity());
 
     size_type old_size = size_;
-    
+
     buff_ = new_buff;
-    buff_end_ = buff_ + new_size;
-    
+    buff_end_ = buff_ + new_capacity;
+
     first_ = buff_;
     last_ = buff_ + old_size;
-    size_ = new_size;
-    for (i = 0; i < new_size - old_size; ++i) {
+    for (i = 0; i < new_capacity - old_size; ++i) {
       push_back(value);
     }
-    // Delete old
-
+    size_ = new_capacity;
   }
 
   template <class U, class Q>
@@ -380,6 +533,10 @@ class circular_buffer {
   }
 
   void push_front(const value_type& value) {
+    if (Extendable && is_full()) {
+      insert(begin(), value);
+      return;
+    }
     if (is_full()) {
       decrement(first_);
       assign_value(first_, value);
@@ -391,7 +548,11 @@ class circular_buffer {
     }
   }
 
-  void push_back(const value_type& value) {
+  void push_back(value_type value) {
+    if (Extendable && is_full()) {
+      resize(capacity() + 1, value);
+      return;
+    }
     if (is_full()) {
       assign_value(last_, value);
       increment(last_);
@@ -552,10 +713,10 @@ class circular_buffer {
   }
 
  public:
+  allocator_type alloc_;
   pointer buff_;
   pointer buff_end_;
   pointer first_;
   pointer last_;
   size_type size_;
-  allocator_type alloc_;
 };

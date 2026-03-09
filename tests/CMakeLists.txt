@@ -25,6 +25,7 @@ add_executable(
     no_default_constructible_ut.cpp
     allocator_ut.cpp
     ext_buffer_ut.cpp
+    constructors_tests.cpp
     random_access_iterator.cpp
 )
 

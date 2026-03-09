@@ -80,7 +80,7 @@ void printRaw(circular_buffer<T>& circ) {
 }
 
 int main() {
-  circular_buffer<int, true> cb(5);  // {3, 1, 0, 2, 4}
+  circular_buffer<int, true> cb(7);  // {3, 1, 0, 2, 4}
   for (int i = 0; i < 5; ++i) {
     if (i % 2 == 0) {
       cb.push_back(i);
@@ -88,9 +88,6 @@ int main() {
       cb.push_front(i);
     }
   }
+  cb.insert(cb.begin() + 2, 2, 8);
   printLogic(cb);
-  auto it = cb.begin();
-  it += 2;
-  std::cout << *it;
-  // cb.insert(cb.begin() + 2, 10);
 }

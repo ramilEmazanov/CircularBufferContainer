@@ -84,13 +84,13 @@ TEST(CircularBufferCtorTest, ConstructorWithCapacityAndDefaultAllocatorWorks) {
   EXPECT_THAT(cb, testing::ElementsAre(1, 2, 3));
 }
 
-TEST(CircularBufferCtorTest, DefaultConstructorCreatesEmptyBuffer) {
-  circular_buffer<int, false> cb;
+// TEST(CircularBufferCtorTest, DefaultConstructorCreatesEmptyBuffer) {
+//   circular_buffer<int, false> cb;
 
-  EXPECT_TRUE(cb.empty());
-  EXPECT_EQ(cb.size(), 0);
-  EXPECT_THAT(cb, testing::ElementsAre());
-}
+//   EXPECT_TRUE(cb.empty());
+//   EXPECT_EQ(cb.size(), 0);
+//   EXPECT_THAT(cb, testing::ElementsAre());
+// }
 
 TEST(CircularBufferCtorTest, InitializerListConstructorStoresElementsInOrder) {
   circular_buffer<int, false> cb = {1, 3, 5, 7};

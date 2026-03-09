@@ -34,17 +34,7 @@ TEST(ExtendableBufferTest, simpleTest) {
     ASSERT_THAT(cb, testing::ElementsAre(1, 2, 3, 4, 5, 6));
 }
 
-TEST(ExtendableBufferTest, insertInTheMiddle) {
-    circular_buffer<int, true> cb(5);
-    cb.push_back(1);
-    cb.push_back(2);
-    cb.push_back(3);
-    cb.push_back(4);
-    cb.push_back(5);
 
-    cb.insert(cb.begin() + 2, {6, 7, 8});
-    ASSERT_THAT(cb, testing::ElementsAre(1, 2, 6, 7, 8, 3, 4, 5));
-}
 
 TEST(ExtendableBufferTest, expand) {
     circular_buffer<int, true> cb = {1, 2, 3, 4, 5};
@@ -72,6 +62,18 @@ TEST(ExtendableBufferTest, insertValue) {
     cb.insert(cb.begin() + 2, 10);
 
     ASSERT_THAT(cb, testing::ElementsAre(3, 1, 10, 0, 2, 4));
+}
+
+TEST(ExtendableBufferTest, insertInTheMiddle) {
+    circular_buffer<int, true> cb(5);
+    cb.push_back(1);
+    cb.push_back(2);
+    cb.push_back(3);
+    cb.push_back(4);
+    cb.push_back(5);
+
+    cb.insert(cb.begin() + 2, {6, 7, 8});
+    ASSERT_THAT(cb, testing::ElementsAre(1, 2, 6, 7, 8, 3, 4, 5));
 }
 
 TEST(ExtendableBufferTest, insertNValues) {

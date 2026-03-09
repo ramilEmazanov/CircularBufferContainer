@@ -90,4 +90,7 @@ int main() {
   }
   cb.insert(cb.begin() + 2, 2, 8);
   printLogic(cb);
+  circular_buffer<int, true>::iterator it = cb.begin();
+  circular_buffer<int, true>::const_iterator cit = it;
+
 }

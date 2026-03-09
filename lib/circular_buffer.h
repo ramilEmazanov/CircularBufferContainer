@@ -414,40 +414,23 @@ class circular_buffer {
   void clear() {}
 
   void resize(size_type new_capacity) {
-    /*
-    1. new_capacity > capacity()
-    2. new_capacity == capacity()
-    3. new_capacity < capacity()
-    Only for shrinking?
-     */
     if (new_capacity == capacity()) {
       return;
     }
-    if (new_capacity < capacity()) {
-      // 1. size_ > new_capacity
-      // 2. size_ < new_capacity
-      // 3. size_ == new_capacity
-      pointer new_buff = alloc_traits::allocate(alloc_, new_capacity);
-      auto it = begin();
-      for (size_type i = 0; i < new_capacity; ++i) {
-        alloc_traits::construct(alloc_, new_buff + i, *it);
-        ++it;
-      }
-      for (int i = 0; i < size_; ++i) {
-        alloc_traits::destroy(alloc_, buff_ + i);
-      }
-      alloc_traits::deallocate(alloc_, buff_, capacity());
-      buff_ = new_buff;
-      buff_end_ = buff_ + new_capacity;
-      first_ = buff_;
-      // last_ = ?????;
-      size_ = new_capacity;
-    } else {
-      // new_capacity > capacity()
-      // move to a longer buff_
-      // copy elements from beginning
-      // the same as with resize(new_capacity, value)
+    pointer new_buff = alloc_traits::allocate(alloc_, new_capacity);
+    auto it = begin();
+    for (size_type i = 0; i < size_; ++i) {
+      alloc_traits::construct(alloc_, new_buff + i, *it);
+      ++it;
     }
+    for (int i = 0; i < size_; ++i) {
+      alloc_traits::destroy(alloc_, buff_ + i);
+    }
+    alloc_traits::deallocate(alloc_, buff_, capacity());
+    buff_ = new_buff;
+    buff_end_ = buff_ + new_capacity;
+    first_ = buff_;
+    last_ = first_ + size_;
   }
 
   void resize(size_type new_capacity, const value_type& value) {

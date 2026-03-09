@@ -447,10 +447,6 @@ class circular_buffer {
     return iterator(this, buff_ + insert_index);
   }
 
-  // SeqContainer requirement. Inserts copies of elements in [i, j) before p.
-  iterator insert(const_iterator before, iterator range_begin,
-                  iterator range_end) {}
-
   template <class InputIt, typename std::iterator_traits<
                                InputIt>::iterator_category* = nullptr>
   iterator insert(const_iterator before, InputIt range_begin,
@@ -497,9 +493,6 @@ class circular_buffer {
 
     return iterator(this, buff_ + insert_index);
   }
-
-  // Inserts
-  iterator insert_range() {}
 
   void clear() {
     pointer p = first_;
@@ -771,13 +764,9 @@ class circular_buffer {
     }
   }
 
-  reference at(size_type index) {
-    return *(begin() + index);
-  }
+  reference at(size_type index) { return *(begin() + index); }
 
-  const_reference at(size_type index) const {
-    return *(begin() + index);
-  }
+  const_reference at(size_type index) const { return *(begin() + index); }
 
   size_type capacity() const { return buff_end_ - buff_; }
 

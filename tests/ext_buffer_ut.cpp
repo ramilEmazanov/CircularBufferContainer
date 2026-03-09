@@ -269,3 +269,12 @@ TEST(ExtendableBufferTest, insertIterators1) {
   EXPECT_EQ(it - cb.begin(), 1);
   ASSERT_THAT(cb, testing::ElementsAre(1, 10, 11, 12, 2, 3, 4));
 }
+
+TEST(ExtendableBufferTest, insertIteratorFromCB) {
+  circular_buffer<int, true> cb = {1, 2, 3, 4};
+  circular_buffer<int, true> from = {10, 11, 12};
+
+  cb.insert(cb.begin() + 2, from.begin(), from.end());
+
+  ASSERT_THAT(cb, testing::ElementsAre(1, 2, 10, 11, 12, 3, 4));
+}

@@ -146,7 +146,6 @@ TEST(ExtendableBufferTest, simpleTestForPushFront) {
 }
 
 TEST(ExtendableBufferTest, expandFullBuffer) {
-  // Buffer is full, we add new elements
   circular_buffer<int, true> cb = {1, 2, 3, 4, 5};
   cb.resize(7, 6);
 
@@ -154,7 +153,6 @@ TEST(ExtendableBufferTest, expandFullBuffer) {
 }
 
 TEST(ExtendableBufferTest, expandNotFullBuffer) {
-  // Buffer is not full, so we fill with new value
   circular_buffer<int, true> cb = {1, 2, 3, 4};
   cb.resize(7, 6);
 

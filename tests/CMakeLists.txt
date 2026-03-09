@@ -27,6 +27,7 @@ add_executable(
     ext_buffer_ut.cpp
     constructors_tests.cpp
     random_access_iterator.cpp
+    reverse_iterator.cpp
 )
 
 if(RUN_EXT_TESTS)

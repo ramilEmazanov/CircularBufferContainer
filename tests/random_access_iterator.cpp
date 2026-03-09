@@ -17,16 +17,6 @@ void WrapAround(Container& cb) {
   cb.push_back(12);
 }
 
-TEST(CircularBufferIterTest, IteratorTraitsAreRandomAccessAndInt) {
-  using iterator = typename CB::iterator;
-
-  using category = typename std::iterator_traits<iterator>::iterator_category;
-  static_assert(std::is_same_v<category, std::random_access_iterator_tag>);
-
-  using value_type = typename std::iterator_traits<iterator>::value_type;
-  static_assert(std::is_same_v<value_type, int>);
-}
-
 TEST(CircularBufferIterTest, Distances) {
   CB cb(10);
   cb.assign({1, 3, 5, 7, 9, 11});

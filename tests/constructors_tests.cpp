@@ -35,8 +35,7 @@ TEST(CircularBufferCtorTest, EmptyBuff) {
 }
 
 TEST(CircularBufferCtorTest, EmptyWithAlloc) {
-  using alloc_t = typename circular_buffer<int, false>::allocator_type;
-  alloc_t alloc{};
+  typename circular_buffer<int, false>::allocator_type alloc{};
 
   circular_buffer<int, false> cb(alloc);
 

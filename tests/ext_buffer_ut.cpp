@@ -185,8 +185,8 @@ TEST(ExtendableBufferTest, expandToTheLessCapacity) {
   ASSERT_THAT(cb, testing::ElementsAre(2, 3, 4, 5, 12));
 }
 
-TEST(ExtendableBufferTest, insertValueInFull) {
-  circular_buffer<int, true> cb(5);  // {3, 1, 0, 2, 4}
+TEST(ExtendableBufferTest, insertValueFull) {
+  circular_buffer<int, true> cb(5);
   for (int i = 0; i < 5; ++i) {
     if (i % 2 == 0) {
       cb.push_back(i);
@@ -199,7 +199,7 @@ TEST(ExtendableBufferTest, insertValueInFull) {
   ASSERT_THAT(cb, testing::ElementsAre(3, 1, 10, 0, 2, 4));
 }
 
-TEST(ExtendableBufferTest, insertValueInNotFull) {
+TEST(ExtendableBufferTest, insertValueNofull) {
   circular_buffer<int, true> cb(5);
   for (int i = 0; i < 4; ++i) {
     cb.push_back(i + 1);
@@ -209,22 +209,63 @@ TEST(ExtendableBufferTest, insertValueInNotFull) {
   ASSERT_THAT(cb, testing::ElementsAre(1, 2, 10, 3, 4));
 }
 
-TEST(ExtendableBufferTest, insertValueInTheEnd) {
-  circular_buffer<int, true> cb(5);
-  for (int i = 0; i < 4; ++i) {
-    cb.push_back(i + 1);
-  }
-  cb.insert(cb.end(), 10);
+TEST(ExtendableBufferTest, insertMiddleValue) {
+  circular_buffer<int, true> cb = {1, 2, 3, 4};
 
+  auto it = cb.insert(cb.begin() + 2, 10);
+
+  EXPECT_EQ(*it, 10);
+  EXPECT_EQ(it - cb.begin(), 2);
+  ASSERT_THAT(cb, testing::ElementsAre(1, 2, 10, 3, 4));
+}
+
+TEST(ExtendableBufferTest, insertBeginValue) {
+  circular_buffer<int, true> cb = {1, 2, 3, 4};
+
+  auto it = cb.insert(cb.begin(), 10);
+
+  EXPECT_EQ(*it, 10);
+  EXPECT_EQ(it, cb.begin());
+  ASSERT_THAT(cb, testing::ElementsAre(10, 1, 2, 3, 4));
+}
+
+TEST(ExtendableBufferTest, insertEnd) {
+  circular_buffer<int, true> cb = {1, 2, 3, 4};
+
+  auto it = cb.insert(cb.end(), 10);
+
+  EXPECT_EQ(*it, 10);
+  EXPECT_EQ(it - cb.begin(), 4);
   ASSERT_THAT(cb, testing::ElementsAre(1, 2, 3, 4, 10));
 }
 
-TEST(ExtendableBufferTest, insertValueInTheBeginning) {
-  circular_buffer<int, true> cb(5);
-  for (int i = 0; i < 4; ++i) {
-    cb.push_back(i + 1);
-  }
-  cb.insert(cb.begin(), 10);
+TEST(ExtendableBufferTest, insertCount) {
+  circular_buffer<int, true> cb = {1, 2, 3, 4};
 
-  ASSERT_THAT(cb, testing::ElementsAre(10, 1, 2, 3, 4));
+  auto it = cb.insert(cb.begin() + 1, 3, 8);
+
+  EXPECT_EQ(*it, 8);
+  EXPECT_EQ(it - cb.begin(), 1);
+  ASSERT_THAT(cb, testing::ElementsAre(1, 8, 8, 8, 2, 3, 4));
+}
+
+TEST(ExtendableBufferTest, insertInitializerList1) {
+  circular_buffer<int, true> cb = {1, 2, 3, 4};
+
+  auto it = cb.insert(cb.begin() + 2, {7, 8, 9});
+
+  EXPECT_EQ(*it, 7);
+  EXPECT_EQ(it - cb.begin(), 2);
+  ASSERT_THAT(cb, testing::ElementsAre(1, 2, 7, 8, 9, 3, 4));
+}
+
+TEST(ExtendableBufferTest, insertIterators1) {
+  circular_buffer<int, true> cb = {1, 2, 3, 4};
+  std::vector<int> v = {10, 11, 12};
+
+  auto it = cb.insert(cb.begin() + 1, v.begin(), v.end());
+
+  EXPECT_EQ(*it, 10);
+  EXPECT_EQ(it - cb.begin(), 1);
+  ASSERT_THAT(cb, testing::ElementsAre(1, 10, 11, 12, 2, 3, 4));
 }

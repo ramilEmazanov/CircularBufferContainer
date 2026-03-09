@@ -193,7 +193,8 @@ class circular_buffer {
         last_(buff_),
         size_(0) {}
 
-  circular_buffer(const circular_buffer& other) {
+  circular_buffer(const circular_buffer& other,
+                  const allocator_type& alloc = allocator_type()) {
     size_type capacity = other.capacity();
     alloc_ = alloc_traits::select_on_container_copy_construction(other.alloc_);
     buff_ = alloc_traits::allocate(alloc_, capacity);
@@ -206,13 +207,39 @@ class circular_buffer {
     last_ = buff_ + (other.last_ - other.buff_);
   }
 
-  circular_buffer(size_type size, value_type value) {}
+  circular_buffer(size_type count, const value_type& value,
+                  const Allocator& alloc = Allocator())
+      : circular_buffer(count, alloc) {
+    for (size_type i = 0; i < count; ++i) {
+      alloc_traits::construct(alloc_, buff_ + i, value);
+    }
+    size_ = count;
+  }
 
-  circular_buffer(iterator begin, iterator end) {}
+  template <class InputIt, typename std::iterator_traits<
+                               InputIt>::iterator_category* = nullptr>
+  circular_buffer(InputIt begin, InputIt end)
+      : circular_buffer(static_cast<size_type>(end - begin)) {
+    pointer p = first_;
+    last_ = p;
+    for (begin; begin != end; ++begin) {
+      assign_value(p, *begin);
+      increment(p);
+      increment(last_);
+      size_++;
+    }
+  }
 
-  circular_buffer() {}
+  circular_buffer()
+      : alloc_(),
+        buff_(nullptr),
+        buff_end_(nullptr),
+        first_(nullptr),
+        last_(nullptr),
+        size_(0) {}
 
-  circular_buffer(std::initializer_list<T> list)
+  circular_buffer(std::initializer_list<T> list,
+                  const Allocator& alloc = Allocator())
       : circular_buffer(list.size()) {
     for (typename std::initializer_list<T>::iterator it = list.begin();
          it != list.end(); ++it) {
@@ -220,7 +247,67 @@ class circular_buffer {
     }
   }
 
-  circular_buffer& operator=(const circular_buffer& other) {}
+  circular_buffer& operator=(const circular_buffer& other) {
+    if (this == &other) {
+      return *this;
+    }
+    if (capacity() != other.capacity()) {
+      clear();
+      if (buff_ != nullptr) {
+        alloc_traits::deallocate(alloc_, buff_, capacity());
+      }
+
+      buff_ = alloc_traits::allocate(alloc_, other.capacity());
+      buff_end_ = buff_ + other.capacity();
+      first_ = buff_;
+      last_ = buff_;
+    } else {
+      clear();
+    }
+    pointer p = first_;
+    last_ = p;
+    for (auto it = other.begin(); it != other.end(); ++it) {
+      assign_value(p, *it);
+      increment(p);
+      increment(last_);
+      ++size_;
+    }
+    return *this;
+  }
+
+  circular_buffer& operator=(std::initializer_list<T> list) {
+    if (capacity() != list.size()) {
+      clear();
+      if (buff_ != nullptr) {
+        alloc_traits::deallocate(alloc_, buff_, capacity());
+      }
+
+      buff_ = alloc_traits::allocate(alloc_, list.size());
+      buff_end_ = buff_ + list.size();
+      first_ = buff_;
+      last_ = buff_;
+    } else {
+      clear();
+    }
+
+    pointer p = first_;
+    last_ = p;
+    for (auto it = list.begin(); it != list.end(); ++it) {
+      assign_value(p, *it);
+      increment(p);
+      increment(last_);
+      ++size_;
+    }
+
+    return *this;
+  }
+
+  ~circular_buffer() {
+    for (size_type i = 0; i < size_; ++i) {
+      alloc_traits::destroy(alloc_, buff_ + i);
+    }
+    alloc_traits::deallocate(alloc_, buff_, capacity());
+  }
 
   allocator_type get_allocator() { return alloc_; }
 
@@ -237,6 +324,7 @@ class circular_buffer {
   const_reverse_iterator crend() const { return base_iterator(); }
 
   iterator insert(const_iterator add, std::initializer_list<T> list) {
+    size_type insert_index = static_cast<size_type>(logic_index(add.it_));
     size_type new_capacity = capacity() * 2;
     pointer new_buff = alloc_traits::allocate(alloc_, new_capacity);
     size_type i = 0;
@@ -274,10 +362,11 @@ class circular_buffer {
       last_ = buff_ + size_;
     }
 
-    return iterator();
+    return iterator(this, buff_ + insert_index);
   }
 
   iterator insert(const_iterator add, const value_type& value) {
+    size_type insert_index = static_cast<size_type>(logic_index(add.it_));
     size_type new_capacity = capacity() * 2;
     pointer new_buff = alloc_traits::allocate(alloc_, new_capacity);
     size_type i = 0;
@@ -312,11 +401,12 @@ class circular_buffer {
       last_ = buff_ + size_;
     }
 
-    return iterator();
+    return iterator(this, buff_ + insert_index);
   }
 
   iterator insert(const_iterator add, size_type count,
                   const value_type& value) {
+    size_type insert_index = static_cast<size_type>(logic_index(add.it_));
     size_type new_capacity = capacity() * 2;
     pointer new_buff = alloc_traits::allocate(alloc_, new_capacity);
     size_type i = 0;
@@ -354,8 +444,7 @@ class circular_buffer {
     } else {
       last_ = buff_ + size_;
     }
-
-    return iterator();
+    return iterator(this, buff_ + insert_index);
   }
 
   // SeqContainer requirement. Inserts copies of elements in [i, j) before p.
@@ -366,6 +455,7 @@ class circular_buffer {
                                InputIt>::iterator_category* = nullptr>
   iterator insert(const_iterator before, InputIt range_begin,
                   InputIt range_end) {
+    size_type insert_index = static_cast<size_type>(logic_index(before.it_));
     size_type count = range_end - range_begin;
     size_type new_capacity = 2 * capacity();
     pointer new_buff = alloc_traits::allocate(alloc_, new_capacity);
@@ -405,21 +495,33 @@ class circular_buffer {
       last_ = buff_ + size_;
     }
 
-    return iterator();
+    return iterator(this, buff_ + insert_index);
   }
 
   // Inserts
   iterator insert_range() {}
 
-  void clear() {}
+  void clear() {
+    pointer p = first_;
+    for (size_type i = 0; i < size_; ++i) {
+      alloc_traits::destroy(alloc_, p);
+      increment(p);
+    }
+    first_ = buff_;
+    last_ = buff_;
+    size_ = 0;
+  }
 
   void resize(size_type new_capacity) {
     if (new_capacity == capacity()) {
       return;
     }
+    size_type old_capacity = capacity();
+    size_type new_size = new_capacity > old_capacity ? size_ : new_capacity;
+
     pointer new_buff = alloc_traits::allocate(alloc_, new_capacity);
     auto it = begin();
-    for (size_type i = 0; i < size_; ++i) {
+    for (size_type i = 0; i < new_size; ++i) {
       alloc_traits::construct(alloc_, new_buff + i, *it);
       ++it;
     }
@@ -430,21 +532,16 @@ class circular_buffer {
     buff_ = new_buff;
     buff_end_ = buff_ + new_capacity;
     first_ = buff_;
-    last_ = first_ + size_;
+
+    if (old_capacity < new_capacity) {
+      last_ = first_ + size_;
+    } else {
+      last_ = first_ + ((size_ >= new_capacity) ? 0 : new_capacity);
+      size_ = new_capacity;
+    }
   }
 
   void resize(size_type new_capacity, const value_type& value) {
-    /*
-    1. new_capacity > capacity() - done
-    2. new_capacity == capacity() - done
-    3. new_capacity < capacity()
-    4. new_capacity > size_ > capacity
-    5. new_capacity == size_ == capacity()
-    6. new_capacity < size_ <= capacity()
-
-    1. Buffer is full. new_capacity > capacity()
-    2. Buffer is not full. new_capacity > capacity()
-    */
     if (new_capacity <= capacity()) return;
 
     pointer new_buff = alloc_traits::allocate(alloc_, new_capacity);
@@ -516,8 +613,8 @@ class circular_buffer {
     if (n > capacity()) {
       throw std::runtime_error("Overflow\n");
     }
-    size_ = 0;
-    pointer ptr = begin().it_;
+    clear();
+    pointer ptr = buff_;
     last_ = ptr;
     for (size_type i = 0; i < n; ++i) {
       assign_value(ptr, value);
@@ -529,13 +626,14 @@ class circular_buffer {
 
   template <class InputIterator>
   void assign_impl(InputIterator begin_pos, InputIterator end_pos) {
-    // Exception if end_pos - begin_pos > capacity()
-    pointer p = begin().it_;
+    pointer p = first_;
     last_ = p;
+    size_ = 0;
     for (InputIterator it = begin_pos; it != end_pos; ++it) {
       assign_value(p, *it);
       increment(p);
       increment(last_);
+      size_++;
     }
   }
 
@@ -543,8 +641,8 @@ class circular_buffer {
     if (list.size() > capacity()) {
       throw std::runtime_error("Overflow\n");
     }
-    size_ = 0;
-    pointer ptr = begin().it_;
+    clear();
+    pointer ptr = buff_;
     last_ = ptr;
     for (auto it = list.begin(); it != list.end(); ++it) {
       assign_value(ptr, *it);
@@ -673,32 +771,35 @@ class circular_buffer {
     }
   }
 
-  ~circular_buffer() {
-    for (size_type i = 0; i < size_; ++i) {
-      alloc_traits::destroy(alloc_, buff_ + i);
-    }
-    alloc_traits::deallocate(alloc_, buff_, capacity());
+  reference at(size_type index) {
+    return *(begin() + index);
   }
 
-  reference at(size_type index) {}
-
-  const_reference at(size_type index) const {}
+  const_reference at(size_type index) const {
+    return *(begin() + index);
+  }
 
   size_type capacity() const { return buff_end_ - buff_; }
 
-  void assign_value(pointer p, const value_type& value) { *p = value; }
+  void assign_value(pointer p, const value_type& value) {
+    alloc_traits::construct(alloc_, p, value);
+    // *p = value;
+  }
 
   bool is_full() { return size_ == capacity(); }
 
-  iterator begin() { return iterator(this, first_); }
+  iterator begin() { return empty() ? end() : iterator(this, first_); }
 
-  const_iterator begin() const { return const_iterator(this, first_); }
+  const_iterator begin() const {
+    return empty() ? end() : const_iterator(this, first_);
+  }
+  const_iterator cbegin() const {
+    return empty() ? cend() : const_iterator(this, first_);
+  }
 
   iterator end() { return iterator(this, nullptr); }
 
   const_iterator end() const { return const_iterator(this, nullptr); }
-
-  const_iterator cbegin() const { return const_iterator(this, first_); }
 
   const_iterator cend() const { return const_iterator(this, nullptr); }
 

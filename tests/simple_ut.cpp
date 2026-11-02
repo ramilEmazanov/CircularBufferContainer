@@ -142,3 +142,113 @@ TYPED_TEST(CircularBufferIntTest, simpleTest) {
 
     ASSERT_EQ(cb.front(), 3);
 }
+
+TEST(CircularBufferMyOwnSimpleTests, SimpleWrapAroundTest) {
+  circular_buffer<int, false> cb(5);
+
+  for (int i = 0; i < 20; ++i) {
+    cb.push_back(i);
+  }
+
+  ASSERT_THAT(cb, testing::ElementsAre(15, 16, 17, 18, 19));
+}
+
+TEST(CircularBufferMyOwnSimpleTests, MediumWrapAroundTest1) {
+  circular_buffer<int, false> cb(5);
+
+  for (int i = 0; i < 10; ++i) {
+    cb.push_back(i);
+  }
+
+  ASSERT_THAT(cb, testing::ElementsAre(5, 6, 7, 8, 9));
+}
+
+TEST(CircularBufferMyOwnSimpleTests, nAssignValues2) {
+  circular_buffer<int, false> cb(5);
+
+  for (int i = 0; i < 5; ++i) {
+    if (i % 2 == 0) {
+      cb.push_back(i);
+    } else {
+      cb.push_front(i);
+    }
+  }
+  cb.assign(3, 10);
+  ASSERT_THAT(cb, testing::ElementsAre(10, 10, 10));
+}
+
+TEST(CircularBufferMyOwnSimpleTests, nAssignValues3) {
+  circular_buffer<int, false> cb(5);
+  cb.assign(1, 10);
+  ASSERT_THAT(cb, testing::ElementsAre(10));
+}
+
+TEST(CircularBufferMyOwnSimpleTests, nAssignValues4) {
+  circular_buffer<int, false> cb(5);
+  cb.assign(4, 6);
+  cb.assign(5, 7);
+  ASSERT_THAT(cb, testing::ElementsAre(7, 7, 7, 7, 7));
+}
+
+TEST(CircularBufferMyOwnSimpleTests, nAssignValuesWithPushBack) {
+  circular_buffer<int, false> cb(5);
+  cb.assign(4, 6);
+  cb.assign(5, 7);
+  for (int i = 0; i < 5; ++i) {
+    cb.push_back(i);
+  }
+  ASSERT_THAT(cb, testing::ElementsAre(0, 1, 2, 3, 4));
+}
+
+TEST(CircularBufferMyOwnSimpleTests, nAssignValuesWithPushFront) {
+  circular_buffer<int, false> cb(5);
+  cb.assign(4, 6);
+  cb.assign(5, 7);
+  for (int i = 0; i < 5; ++i) {
+    cb.push_front(i);
+  }
+  ASSERT_THAT(cb, testing::ElementsAre(4, 3, 2, 1, 0));
+}
+
+TEST(CircularBufferMyOwnSimpleTests, nAssignValuesMixed) {
+  circular_buffer<int, false> cb(5);
+
+  cb.assign(4, 6);
+  cb.assign(5, 7);
+  for (int i = 0; i < 5; ++i) {
+    if (i % 2 == 0) {
+      cb.push_front(i);
+    } else {
+      cb.push_back(i);
+    }
+  }
+  ASSERT_THAT(cb, testing::ElementsAre(4, 7, 7, 7, 7));
+}
+
+TEST(CircularBufferMyOwnSimpleTests, assignIterator1) {
+  circular_buffer<int, false> cb(5);
+
+  std::vector<int> v = {1, 2, 3, 4, 5};
+
+  cb.assign(v.begin() + 1, v.end() - 1);
+
+  ASSERT_THAT(cb, testing::ElementsAre(2, 3, 4));
+}
+
+TEST(CircularBufferMyOwnSimpleTests, assignIterator2) {
+  circular_buffer<int, false> cb(5);
+
+  std::vector<int> v = {1, 2, 3, 4, 5};
+
+  cb.assign(5, 7);
+  for (int i = 0; i < 5; ++i) {
+    if (i % 2 == 0) {
+      cb.push_front(i);
+    } else {
+      cb.push_back(i);
+    }
+  }
+  cb.assign(v.begin() + 1, v.end() - 1);
+
+  ASSERT_THAT(cb, testing::ElementsAre(2, 3, 4));
+}
